@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -33,6 +35,11 @@
     --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
+
+    --iron-red: #dc2626;
+    --iron-gold: #fcd34d;
+    --iron-gray: #1f2937;
+    --iron-light-gray: #374151;
 
     --sidebar-background: 0 0% 98%;
 
