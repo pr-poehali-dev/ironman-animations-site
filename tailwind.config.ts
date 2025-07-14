@@ -30,6 +30,14 @@ export default {
 					gray: 'var(--iron-gray)',
 					'light-gray': 'var(--iron-light-gray)'
 				},
+				trading: {
+					bg: 'var(--trading-bg)',
+					card: 'var(--trading-card)',
+					border: 'var(--trading-border)',
+					green: 'var(--trading-green)',
+					red: 'var(--trading-red)',
+					yellow: 'var(--trading-yellow)'
+				},
 				primary: {
 					DEFAULT: 'hsl(var(--primary))',
 					foreground: 'hsl(var(--primary-foreground))'

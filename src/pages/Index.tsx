@@ -1,294 +1,430 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import Icon from "@/components/ui/icon";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { useState, useEffect } from "react";
+import useWebSocket from "react-use-websocket";
 
 const Index = () => {
-  const suits = [
-    { name: "Mark I", status: "Первый прототип", year: "2008" },
-    { name: "Mark L", status: "Нанотехнологии", year: "2018" },
-    { name: "Mark XLII", status: "Экстремис", year: "2013" },
-    { name: "War Machine", status: "Боевой", year: "2010" }
+  const [balance, setBalance] = useState(100);
+  const [selectedPair, setSelectedPair] = useState("BTC/USDT");
+  const [orderType, setOrderType] = useState("market");
+  const [orderSide, setOrderSide] = useState("buy");
+  const [amount, setAmount] = useState("");
+  const [price, setPrice] = useState("");
+  const [leverage, setLeverage] = useState(10);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [orders, setOrders] = useState<any[]>([]);
+  const [cryptoPairs, setCryptoPairs] = useState([
+    { symbol: "BTC/USDT", price: 43250.50, change: 2.45, volume: "1.2B" },
+    { symbol: "ETH/USDT", price: 2580.75, change: -1.23, volume: "890M" },
+    { symbol: "SOL/USDT", price: 98.45, change: 5.67, volume: "234M" },
+    { symbol: "ADA/USDT", price: 0.4521, change: -0.89, volume: "156M" },
+    { symbol: "DOT/USDT", price: 6.789, change: 3.21, volume: "89M" },
+    { symbol: "AVAX/USDT", price: 25.67, change: 1.45, volume: "67M" }
+  ]);
+
+  // Simulate live price updates
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCryptoPairs(prev => prev.map(pair => ({
+        ...pair,
+        price: pair.price + (Math.random() - 0.5) * pair.price * 0.01,
+        change: (Math.random() - 0.5) * 10
+      })));
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const chartData = [
+    { time: "00:00", price: 43100 },
+    { time: "04:00", price: 43200 },
+    { time: "08:00", price: 43050 },
+    { time: "12:00", price: 43300 },
+    { time: "16:00", price: 43250 },
+    { time: "20:00", price: 43400 },
+    { time: "24:00", price: 43250 }
   ];
 
-  const movies = [
-    { title: "Железный человек", year: "2008", rating: "7.9" },
-    { title: "Мстители", year: "2012", rating: "8.0" },
-    { title: "Железный человек 3", year: "2013", rating: "7.1" },
-    { title: "Мстители: Финал", year: "2019", rating: "8.4" }
-  ];
+  const orderBook = {
+    asks: [
+      { price: 43252.50, amount: 0.1234, total: 5.340 },
+      { price: 43253.00, amount: 0.2456, total: 10.623 },
+      { price: 43254.50, amount: 0.3678, total: 15.901 },
+      { price: 43255.00, amount: 0.4901, total: 21.203 },
+      { price: 43256.50, amount: 0.5234, total: 26.630 }
+    ],
+    bids: [
+      { price: 43250.00, amount: 0.1567, total: 6.773 },
+      { price: 43249.50, amount: 0.2890, total: 12.497 },
+      { price: 43248.00, amount: 0.3456, total: 14.942 },
+      { price: 43247.50, amount: 0.4123, total: 17.837 },
+      { price: 43246.00, amount: 0.5678, total: 24.548 }
+    ]
+  };
 
-  const abilities = [
-    { name: "Полет", description: "Реактивные двигатели", icon: "Rocket" },
-    { name: "Защита", description: "Броня из вибраниума", icon: "Shield" },
-    { name: "Энергия", description: "Дуговой реактор", icon: "Zap" },
-    { name: "ИИ", description: "FRIDAY и JARVIS", icon: "Brain" }
-  ];
+  const handleOrder = () => {
+    const orderAmount = parseFloat(amount);
+    const orderPrice = orderType === "market" ? cryptoPairs.find(p => p.symbol === selectedPair)?.price || 0 : parseFloat(price);
+    
+    if (!orderAmount || orderAmount <= 0) return;
+    
+    const totalValue = orderAmount * orderPrice;
+    const leveragedValue = totalValue / leverage;
+    
+    if (leveragedValue > balance) {
+      alert("Недостаточно средств!");
+      return;
+    }
+
+    const newOrder = {
+      id: Date.now(),
+      symbol: selectedPair,
+      side: orderSide,
+      type: orderType,
+      amount: orderAmount,
+      price: orderPrice,
+      leverage: leverage,
+      time: new Date().toLocaleTimeString(),
+      status: "filled"
+    };
+
+    setOrders([newOrder, ...orders]);
+    
+    const newPosition = {
+      id: Date.now(),
+      symbol: selectedPair,
+      side: orderSide,
+      amount: orderAmount,
+      entryPrice: orderPrice,
+      leverage: leverage,
+      margin: leveragedValue,
+      unrealizedPnl: 0,
+      time: new Date().toLocaleTimeString()
+    };
+
+    setPositions([newPosition, ...positions]);
+    setBalance(balance - leveragedValue);
+    setAmount("");
+    setPrice("");
+  };
+
+  const closePosition = (positionId: number) => {
+    setPositions(positions.filter(p => p.id !== positionId));
+  };
+
+  const currentPrice = cryptoPairs.find(p => p.symbol === selectedPair)?.price || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-iron-gray via-iron-light-gray to-black font-inter">
-      {/* Hero Section */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-r from-iron-red/20 to-iron-gold/20"></div>
-        <div className="relative z-10 text-center animate-fade-in">
-          <div className="mb-8 animate-glow">
-            <img 
-              src="https://v3.fal.media/files/penguin/8mMBDGmAgDkl8hFwLsazP_output.png" 
-              alt="Iron Man" 
-              className="w-32 h-32 mx-auto rounded-full border-4 border-iron-gold"
-            />
+    <div className="min-h-screen bg-trading-bg text-white font-inter">
+      {/* Header */}
+      <header className="bg-trading-card border-b border-trading-border p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <h1 className="text-2xl font-bold text-trading-yellow">CryptoTrade Pro</h1>
+            <Select value={selectedPair} onValueChange={setSelectedPair}>
+              <SelectTrigger className="w-40 bg-trading-bg border-trading-border">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="bg-trading-card border-trading-border">
+                {cryptoPairs.map(pair => (
+                  <SelectItem key={pair.symbol} value={pair.symbol}>
+                    {pair.symbol}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-4">
+              <span className="text-2xl font-bold">${currentPrice.toLocaleString()}</span>
+              <Badge className={`${cryptoPairs.find(p => p.symbol === selectedPair)?.change > 0 ? 'bg-trading-green' : 'bg-trading-red'} text-white`}>
+                {cryptoPairs.find(p => p.symbol === selectedPair)?.change > 0 ? '+' : ''}{cryptoPairs.find(p => p.symbol === selectedPair)?.change}%
+              </Badge>
+            </div>
           </div>
-          <h1 className="text-7xl md:text-8xl font-orbitron font-black text-iron-gold mb-6 animate-scale-in">
-            IRON MAN
-          </h1>
-          <p className="text-xl md:text-2xl text-white mb-8 max-w-2xl mx-auto opacity-90">
-            Genius, Billionaire, Playboy, Philanthropist
-          </p>
-          <div className="flex gap-4 justify-center">
-            <Button className="bg-iron-red hover:bg-iron-red/80 text-white px-8 py-3 text-lg font-semibold">
-              Explore Universe
-            </Button>
-            <Button variant="outline" className="border-iron-gold text-iron-gold hover:bg-iron-gold hover:text-black px-8 py-3 text-lg">
-              Watch Trailer
-            </Button>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className="text-sm text-gray-400">Баланс</p>
+              <p className="text-xl font-bold text-trading-yellow">${balance.toFixed(2)}</p>
+            </div>
+            <Icon name="User" className="w-8 h-8 text-gray-400" />
           </div>
         </div>
-      </section>
+      </header>
 
-      {/* Navigation Tabs */}
-      <section className="py-20 px-4">
-        <div className="max-w-6xl mx-auto">
-          <Tabs defaultValue="biography" className="w-full">
-            <TabsList className="grid w-full grid-cols-6 bg-iron-light-gray/50 mb-12">
-              <TabsTrigger value="biography" className="text-white data-[state=active]:bg-iron-gold data-[state=active]:text-black">
-                Биография
-              </TabsTrigger>
-              <TabsTrigger value="suits" className="text-white data-[state=active]:bg-iron-gold data-[state=active]:text-black">
-                Костюмы
-              </TabsTrigger>
-              <TabsTrigger value="abilities" className="text-white data-[state=active]:bg-iron-gold data-[state=active]:text-black">
-                Способности
-              </TabsTrigger>
-              <TabsTrigger value="movies" className="text-white data-[state=active]:bg-iron-gold data-[state=active]:text-black">
-                Фильмы
-              </TabsTrigger>
-              <TabsTrigger value="comics" className="text-white data-[state=active]:bg-iron-gold data-[state=active]:text-black">
-                Комиксы
-              </TabsTrigger>
-              <TabsTrigger value="games" className="text-white data-[state=active]:bg-iron-gold data-[state=active]:text-black">
-                Игры
-              </TabsTrigger>
-            </TabsList>
-
-            {/* Biography Tab */}
-            <TabsContent value="biography" className="animate-fade-in">
-              <Card className="bg-iron-light-gray/80 border-iron-gold/30">
-                <CardHeader>
-                  <CardTitle className="text-3xl font-orbitron text-iron-gold">
-                    Тони Старк
-                  </CardTitle>
-                  <CardDescription className="text-xl text-gray-300">
-                    Genius inventor and armored superhero
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-white space-y-6">
-                  <div className="grid md:grid-cols-2 gap-8">
-                    <div>
-                      <h3 className="text-xl font-orbitron text-iron-gold mb-3">История</h3>
-                      <p className="text-gray-200 leading-relaxed">
-                        Энтони Эдвард "Тони" Старк родился в богатой семье промышленника Говарда Старка. 
-                        После смерти родителей унаследовал компанию Stark Industries в возрасте 21 года.
-                      </p>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-orbitron text-iron-gold mb-3">Становление героем</h3>
-                      <p className="text-gray-200 leading-relaxed">
-                        В плену у террористов создал первый костюм Железного человека, чтобы сбежать. 
-                        Вернувшись, решил использовать свои технологии для защиты мира.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Suits Tab */}
-            <TabsContent value="suits" className="animate-fade-in">
-              <div className="grid md:grid-cols-3 gap-8 mb-8">
-                <Card className="bg-iron-light-gray/80 border-iron-gold/30 hover:border-iron-gold transition-all hover:scale-105">
-                  <CardContent className="p-0">
-                    <img 
-                      src="/img/01c74971-aa5e-4bef-8ad1-311714d49d1a.jpg" 
-                      alt="Iron Man Mark 50" 
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
-                    <div className="p-6">
-                      <h3 className="text-xl font-orbitron text-iron-gold mb-2">Mark 50</h3>
-                      <p className="text-gray-300 mb-4">Нанотехнологическая броня</p>
-                      <Badge className="bg-iron-red text-white">2018</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-iron-light-gray/80 border-iron-gold/30 hover:border-iron-gold transition-all hover:scale-105">
-                  <CardContent className="p-0">
-                    <img 
-                      src="/img/021bbdf0-3a12-4f94-84e8-07cb8f7f8555.jpg" 
-                      alt="Iron Man Flying" 
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
-                    <div className="p-6">
-                      <h3 className="text-xl font-orbitron text-iron-gold mb-2">В действии</h3>
-                      <p className="text-gray-300 mb-4">Полет над городом</p>
-                      <Badge className="bg-iron-gold text-black">Активен</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card className="bg-iron-light-gray/80 border-iron-gold/30 hover:border-iron-gold transition-all hover:scale-105">
-                  <CardContent className="p-0">
-                    <img 
-                      src="/img/498eee37-282d-4e6d-a54d-6eb7e5705fb7.jpg" 
-                      alt="Tony Stark Workshop" 
-                      className="w-full h-48 object-cover rounded-t-lg"
-                    />
-                    <div className="p-6">
-                      <h3 className="text-xl font-orbitron text-iron-gold mb-2">Лаборатория</h3>
-                      <p className="text-gray-300 mb-4">Мастерская Старка</p>
-                      <Badge className="bg-iron-red text-white">Топ-секрет</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {suits.map((suit, index) => (
-                  <Card key={index} className="bg-iron-light-gray/80 border-iron-gold/30 hover:border-iron-gold transition-all hover:scale-105">
-                    <CardHeader>
-                      <CardTitle className="text-iron-gold font-orbitron">{suit.name}</CardTitle>
-                      <CardDescription className="text-gray-300">{suit.status}</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <Badge className="bg-iron-red text-white">{suit.year}</Badge>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* Abilities Tab */}
-            <TabsContent value="abilities" className="animate-fade-in">
-              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {abilities.map((ability, index) => (
-                  <Card key={index} className="bg-iron-light-gray/80 border-iron-gold/30 hover:border-iron-gold transition-all hover:scale-105">
-                    <CardHeader className="text-center">
-                      <div className="mx-auto w-12 h-12 bg-iron-gold/20 rounded-full flex items-center justify-center mb-4">
-                        <Icon name={ability.icon} className="w-6 h-6 text-iron-gold" />
+      {/* Main Trading Interface */}
+      <div className="grid grid-cols-12 gap-4 p-4 h-screen">
+        {/* Left Panel - Market List */}
+        <div className="col-span-3">
+          <Card className="bg-trading-card border-trading-border h-full">
+            <CardHeader>
+              <CardTitle className="text-trading-yellow">Рынки</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                {cryptoPairs.map(pair => (
+                  <div
+                    key={pair.symbol}
+                    className={`p-3 rounded cursor-pointer transition-all ${
+                      selectedPair === pair.symbol ? 'bg-trading-border' : 'hover:bg-trading-border/50'
+                    }`}
+                    onClick={() => setSelectedPair(pair.symbol)}
+                  >
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold">{pair.symbol}</p>
+                        <p className="text-sm text-gray-400">Vol: {pair.volume}</p>
                       </div>
-                      <CardTitle className="text-iron-gold font-orbitron">{ability.name}</CardTitle>
-                      <CardDescription className="text-gray-300">{ability.description}</CardDescription>
-                    </CardHeader>
-                  </Card>
-                ))}
-              </div>
-            </TabsContent>
-
-            {/* Movies Tab */}
-            <TabsContent value="movies" className="animate-fade-in">
-              <div className="grid md:grid-cols-2 gap-6">
-                {movies.map((movie, index) => (
-                  <Card key={index} className="bg-iron-light-gray/80 border-iron-gold/30 hover:border-iron-gold transition-all hover:scale-105">
-                    <CardHeader>
-                      <CardTitle className="text-iron-gold font-orbitron">{movie.title}</CardTitle>
-                      <CardDescription className="text-gray-300 flex items-center gap-2">
-                        <Icon name="Calendar" className="w-4 h-4" />
-                        {movie.year}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center gap-2">
-                        <Icon name="Star" className="w-4 h-4 text-iron-gold" />
-                        <span className="text-white font-semibold">{movie.rating}</span>
+                      <div className="text-right">
+                        <p className="font-semibold">${pair.price.toLocaleString()}</p>
+                        <p className={`text-sm ${pair.change > 0 ? 'text-trading-green' : 'text-trading-red'}`}>
+                          {pair.change > 0 ? '+' : ''}{pair.change}%
+                        </p>
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ))}
               </div>
-            </TabsContent>
-
-            {/* Comics Tab */}
-            <TabsContent value="comics" className="animate-fade-in">
-              <Card className="bg-iron-light-gray/80 border-iron-gold/30">
-                <CardHeader>
-                  <CardTitle className="text-3xl font-orbitron text-iron-gold">
-                    Комиксы Marvel
-                  </CardTitle>
-                  <CardDescription className="text-xl text-gray-300">
-                    История Железного человека в комиксах
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-white space-y-6">
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <div className="text-center">
-                      <div className="text-4xl font-orbitron text-iron-gold mb-2">1963</div>
-                      <p className="text-gray-300">Первое появление</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-4xl font-orbitron text-iron-gold mb-2">500+</div>
-                      <p className="text-gray-300">Выпусков</p>
-                    </div>
-                    <div className="text-center">
-                      <div className="text-4xl font-orbitron text-iron-gold mb-2">85</div>
-                      <p className="text-gray-300">Костюмов</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* Games Tab */}
-            <TabsContent value="games" className="animate-fade-in">
-              <Card className="bg-iron-light-gray/80 border-iron-gold/30">
-                <CardHeader>
-                  <CardTitle className="text-3xl font-orbitron text-iron-gold">
-                    Игры
-                  </CardTitle>
-                  <CardDescription className="text-xl text-gray-300">
-                    Железный человек в видеоиграх
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="text-white space-y-6">
-                  <div className="grid md:grid-cols-2 gap-6">
-                    <div>
-                      <h3 className="text-xl font-orbitron text-iron-gold mb-3">Marvel's Avengers</h3>
-                      <p className="text-gray-200">Играйте за Железного человека в команде Мстителей</p>
-                      <Badge className="bg-iron-red text-white mt-2">Action</Badge>
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-orbitron text-iron-gold mb-3">Iron Man VR</h3>
-                      <p className="text-gray-200">Виртуальная реальность в костюме Железного человека</p>
-                      <Badge className="bg-iron-gold text-black mt-2">VR</Badge>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+            </CardContent>
+          </Card>
         </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="bg-iron-gray/80 py-12 px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          <h3 className="text-2xl font-orbitron text-iron-gold mb-4">
-            "I am Iron Man"
-          </h3>
-          <p className="text-gray-400">
-            © 2024 Marvel Entertainment. All rights reserved.
-          </p>
+        {/* Center Panel - Chart */}
+        <div className="col-span-6">
+          <Card className="bg-trading-card border-trading-border h-full">
+            <CardHeader>
+              <CardTitle className="text-trading-yellow">{selectedPair} График</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#2a2e33" />
+                    <XAxis dataKey="time" stroke="#gray" />
+                    <YAxis stroke="#gray" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#161a1e', 
+                        border: '1px solid #2a2e33',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Line 
+                      type="monotone" 
+                      dataKey="price" 
+                      stroke="#02c076" 
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Order Book */}
+          <Card className="bg-trading-card border-trading-border mt-4">
+            <CardHeader>
+              <CardTitle className="text-trading-yellow">Стакан заявок</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <h4 className="text-trading-red mb-2">Продажа</h4>
+                  {orderBook.asks.map((ask, index) => (
+                    <div key={index} className="flex justify-between text-sm py-1">
+                      <span className="text-trading-red">{ask.price}</span>
+                      <span>{ask.amount}</span>
+                      <span>{ask.total}</span>
+                    </div>
+                  ))}
+                </div>
+                <div>
+                  <h4 className="text-trading-green mb-2">Покупка</h4>
+                  {orderBook.bids.map((bid, index) => (
+                    <div key={index} className="flex justify-between text-sm py-1">
+                      <span className="text-trading-green">{bid.price}</span>
+                      <span>{bid.amount}</span>
+                      <span>{bid.total}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
-      </footer>
+
+        {/* Right Panel - Trading Form */}
+        <div className="col-span-3">
+          <Card className="bg-trading-card border-trading-border">
+            <CardHeader>
+              <CardTitle className="text-trading-yellow">Торговля</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Tabs value={orderSide} onValueChange={setOrderSide}>
+                <TabsList className="grid w-full grid-cols-2 bg-trading-bg">
+                  <TabsTrigger value="buy" className="data-[state=active]:bg-trading-green data-[state=active]:text-white">
+                    Лонг
+                  </TabsTrigger>
+                  <TabsTrigger value="sell" className="data-[state=active]:bg-trading-red data-[state=active]:text-white">
+                    Шорт
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              <div>
+                <Label>Плечо</Label>
+                <Select value={leverage.toString()} onValueChange={(value) => setLeverage(parseInt(value))}>
+                  <SelectTrigger className="bg-trading-bg border-trading-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-trading-card border-trading-border">
+                    <SelectItem value="1">1x</SelectItem>
+                    <SelectItem value="5">5x</SelectItem>
+                    <SelectItem value="10">10x</SelectItem>
+                    <SelectItem value="20">20x</SelectItem>
+                    <SelectItem value="50">50x</SelectItem>
+                    <SelectItem value="100">100x</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Тип ордера</Label>
+                <Select value={orderType} onValueChange={setOrderType}>
+                  <SelectTrigger className="bg-trading-bg border-trading-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-trading-card border-trading-border">
+                    <SelectItem value="market">Рыночный</SelectItem>
+                    <SelectItem value="limit">Лимитный</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {orderType === "limit" && (
+                <div>
+                  <Label>Цена</Label>
+                  <Input
+                    type="number"
+                    value={price}
+                    onChange={(e) => setPrice(e.target.value)}
+                    placeholder="Цена"
+                    className="bg-trading-bg border-trading-border"
+                  />
+                </div>
+              )}
+
+              <div>
+                <Label>Количество</Label>
+                <Input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="Количество"
+                  className="bg-trading-bg border-trading-border"
+                />
+              </div>
+
+              <Button 
+                onClick={handleOrder}
+                className={`w-full ${orderSide === 'buy' ? 'bg-trading-green hover:bg-trading-green/80' : 'bg-trading-red hover:bg-trading-red/80'}`}
+              >
+                {orderSide === 'buy' ? 'Открыть лонг' : 'Открыть шорт'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* Positions */}
+          <Card className="bg-trading-card border-trading-border mt-4">
+            <CardHeader>
+              <CardTitle className="text-trading-yellow">Позиции</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {positions.length === 0 ? (
+                  <p className="text-gray-400 text-center py-4">Нет открытых позиций</p>
+                ) : (
+                  positions.map(position => (
+                    <div key={position.id} className="p-3 bg-trading-bg rounded">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-semibold">{position.symbol}</span>
+                        <Badge className={position.side === 'buy' ? 'bg-trading-green' : 'bg-trading-red'}>
+                          {position.side === 'buy' ? 'Лонг' : 'Шорт'} {position.leverage}x
+                        </Badge>
+                      </div>
+                      <div className="text-sm text-gray-400">
+                        <p>Размер: {position.amount}</p>
+                        <p>Цена входа: ${position.entryPrice}</p>
+                        <p>Маржа: ${position.margin.toFixed(2)}</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="mt-2 w-full border-trading-red text-trading-red hover:bg-trading-red hover:text-white"
+                        onClick={() => closePosition(position.id)}
+                      >
+                        Закрыть
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Bottom Panel - Orders History */}
+      <div className="p-4">
+        <Card className="bg-trading-card border-trading-border">
+          <CardHeader>
+            <CardTitle className="text-trading-yellow">История ордеров</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="text-gray-400 text-sm">
+                    <th className="text-left p-2">Пара</th>
+                    <th className="text-left p-2">Тип</th>
+                    <th className="text-left p-2">Сторона</th>
+                    <th className="text-left p-2">Количество</th>
+                    <th className="text-left p-2">Цена</th>
+                    <th className="text-left p-2">Плечо</th>
+                    <th className="text-left p-2">Время</th>
+                    <th className="text-left p-2">Статус</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map(order => (
+                    <tr key={order.id} className="border-t border-trading-border">
+                      <td className="p-2">{order.symbol}</td>
+                      <td className="p-2">{order.type}</td>
+                      <td className={`p-2 ${order.side === 'buy' ? 'text-trading-green' : 'text-trading-red'}`}>
+                        {order.side === 'buy' ? 'Лонг' : 'Шорт'}
+                      </td>
+                      <td className="p-2">{order.amount}</td>
+                      <td className="p-2">${order.price}</td>
+                      <td className="p-2">{order.leverage}x</td>
+                      <td className="p-2">{order.time}</td>
+                      <td className="p-2">
+                        <Badge className="bg-trading-green text-white">{order.status}</Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };
